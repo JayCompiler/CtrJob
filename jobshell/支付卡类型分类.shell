@@ -1,0 +1,274 @@
+#!/bin/bash
+source /etc/profile
+n=7
+v_date=`date "+%Y-%m-%d" -d "$day -$n days"`
+v_date1=`date "+%Y-%m-%d"`
+#v_date='2018-06-07'
+#v_date1='2018-06-14'
+hive -e"
+use tmp_cardrisk;
+set mapreduce.job.max.split.locations=200; 
+set hive.default.fileformat=TextFile;
+
+use tmp_cardrisk;
+set mapreduce.job.max.split.locations=200; 
+set hive.default.fileformat=TextFile;
+drop table tmp_alpay;
+create table tmp_alpay as
+select distinct a.orderid,d.isforigencard,d.creditcardtype
+from source_cardrisk.infosecurity_maininfo a
+join source_cardrisk.infosecurity_paymentinfo c on c.reqid=a.reqid
+join source_cardrisk.infosecurity_cardinfo d on d.paymentinfoid=c.paymentinfoid
+where c.prepaytype='CCARD'
+and a.orderdate >= '2017-11-01';
+
+
+drop table tmp_cardrisk.tmp_alpay_orderinfo_zy; 
+create table tmp_cardrisk.tmp_alpay_orderinfo_zy as
+Select a.ordertype,
+paymentname ,b.isforigencard,
+case when (
+upper(a.serverfrom) like '%ENGLISH.CTRIP.COM%'
+or (upper(a.serverfrom) LIKE '%CTRIP.COM.HK%' ) 
+or upper(a.serverfrom) like '%CTRIP.CO.KR%' 
+or upper(a.serverfrom) like '%JP.CTRIP.COM%' 
+or upper(a.serverfrom) like '%KR.CTRIP.COM%'
+or upper(a.serverfrom) like '%DE.CTRIP.COM%' 
+or upper(a.serverfrom) like '%FR.CTRIP.COM%' 
+or upper(a.serverfrom) like '%ES.CTRIP.COM%' 
+or upper(a.serverfrom) like '%RU.CTRIP.COM%' 
+or upper(a.serverfrom) like '%CTRIP.SG%' 
+or upper(a.serverfrom) like '%CTRIP.CO.TH%' 
+or upper(a.serverfrom) like '%CTRIP.MY%' 
+or upper(a.serverfrom) like '%CTRIP.CO.ID%' 
+or upper(a.serverfrom) like '%VN.CTRIP.COM%'
+or upper(a.serverfrom) like '%TW.CTRIP.COM%'
+or upper(a.serverfrom) like '%ZH.CTRIP.COM%'
+or upper(a.serverfrom) like '%TRIP/AR%'
+or upper(a.serverfrom) like '%TRIP/AE%'
+or upper(a.serverfrom) like '%TRIP/IE%'
+or upper(a.serverfrom) like '%TRIP/AT%'
+or upper(a.serverfrom) like '%TRIP/AU%'
+or upper(a.serverfrom) like '%TRIP/BR%'
+or upper(a.serverfrom) like '%TRIP/BE%'
+or upper(a.serverfrom) like '%TRIP/PL%'
+or upper(a.serverfrom) like '%TRIP/DE%'
+or upper(a.serverfrom) like '%TRIP/RU%'
+or upper(a.serverfrom) like '%TRIP/FR%'
+or upper(a.serverfrom) like '%TRIP/PH%'
+or upper(a.serverfrom) like '%TRIP/CO%'
+or upper(a.serverfrom) like '%TRIP/KR%'
+or upper(a.serverfrom) like '%TRIP/NL%'
+or upper(a.serverfrom) like '%TRIP/CA%'
+or upper(a.serverfrom) like '%TRIP/CZ%'
+or upper(a.serverfrom) like '%TRIP/MY%'
+or upper(a.serverfrom) like '%TRIP/US%'
+or upper(a.serverfrom) like '%TRIP/PE%'
+or upper(a.serverfrom) like '%TRIP/MX%'
+or upper(a.serverfrom) like '%TRIP/ZA%'
+or upper(a.serverfrom) like '%TRIP/PT%'
+or upper(a.serverfrom) like '%TRIP/JP%'
+or upper(a.serverfrom) like '%TRIP/SE%'
+or upper(a.serverfrom) like '%TRIP/CH%'
+or upper(a.serverfrom) like '%TRIP/SA%'
+or upper(a.serverfrom) like '%TRIP/TW%'
+or upper(a.serverfrom) like '%TRIP/TH%'
+or upper(a.serverfrom) like '%TRIP/TR%'
+or upper(a.serverfrom) like '%TRIP/VE%'
+or upper(a.serverfrom) like '%TRIP/ES%'
+or upper(a.serverfrom) like '%TRIP/GR%'
+or upper(a.serverfrom) like '%TRIP/HK%'
+or upper(a.serverfrom) like '%TRIP/SG%'
+or upper(a.serverfrom) like '%TRIP/NZ%'
+or upper(a.serverfrom) like '%TRIP/IL%'
+or upper(a.serverfrom) like '%TRIP/IT%'
+or upper(a.serverfrom) like '%TRIP/IN%'
+or upper(a.serverfrom) like '%TRIP/ID%'
+or upper(a.serverfrom) like '%TRIP/UK%'
+or upper(a.serverfrom) like '%TRIP/VN%'
+or upper(a.serverfrom) like '%TRIP/CL%'
+or upper(a.serverfrom) like '%TRIP/CN%'
+or upper(a.serverfrom) like '%TRIP.COM/HK%'
+or upper(a.serverfrom) like '%TRIP.COM/HK_EN%'
+or upper(a.serverfrom) like '%TRIP.COM/EN%'
+or upper(a.serverfrom) like '%TRIP.COM/JP%'
+or upper(a.serverfrom) like '%TRIP.COM/KR%'
+or upper(a.serverfrom) like '%TRIP.COM/DE%'
+or upper(a.serverfrom) like '%TRIP.COM/ES%'
+or upper(a.serverfrom) like '%TRIP.COM/FR%'
+or upper(a.serverfrom) like '%TRIP.COM/RU%'
+or upper(a.serverfrom) like '%TRIP.COM/SG%'
+or upper(a.serverfrom) like '%TRIP.COM/AU%'
+or upper(a.serverfrom) like '%TRIP.COM/TH%'
+or upper(a.serverfrom) like '%TRIP.COM/MY%'
+or upper(a.serverfrom) like '%TRIP.COM/ID%'
+or upper(a.serverfrom) like '%.TRIP.COM%'
+or upper(a.serverfrom) like '%trip/en/online%'
+)
+and
+(
+upper(a.serverfrom) <> 'ct.ctrip.com/en'
+and upper(a.serverfrom) <> 'hotels.ctrip.com/detail'
+) then 'T' else 'F' end as isibu,
+Count(1)  as ordernum,
+sum(realget) as orderamount
+From dw_paypubdb.factpayorderdeductsource a
+left join tmp_cardrisk.tmp_alpay b on a.orderid = b.orderid
+Where  y='2018' and createtime >='$v_date' and createtime <'$v_date1'
+And paycategory='信用卡'
+Group by 
+ordertype,b.isforigencard,
+paymentname,
+case when (
+upper(a.serverfrom) like '%ENGLISH.CTRIP.COM%'
+or (upper(a.serverfrom) LIKE '%CTRIP.COM.HK%' ) 
+or upper(a.serverfrom) like '%CTRIP.CO.KR%' 
+or upper(a.serverfrom) like '%JP.CTRIP.COM%' 
+or upper(a.serverfrom) like '%KR.CTRIP.COM%'
+or upper(a.serverfrom) like '%DE.CTRIP.COM%' 
+or upper(a.serverfrom) like '%FR.CTRIP.COM%' 
+or upper(a.serverfrom) like '%ES.CTRIP.COM%' 
+or upper(a.serverfrom) like '%RU.CTRIP.COM%' 
+or upper(a.serverfrom) like '%CTRIP.SG%' 
+or upper(a.serverfrom) like '%CTRIP.CO.TH%' 
+or upper(a.serverfrom) like '%CTRIP.MY%' 
+or upper(a.serverfrom) like '%CTRIP.CO.ID%' 
+or upper(a.serverfrom) like '%VN.CTRIP.COM%'
+or upper(a.serverfrom) like '%TW.CTRIP.COM%'
+or upper(a.serverfrom) like '%ZH.CTRIP.COM%'
+or upper(a.serverfrom) like '%TRIP/AR%'
+or upper(a.serverfrom) like '%TRIP/AE%'
+or upper(a.serverfrom) like '%TRIP/IE%'
+or upper(a.serverfrom) like '%TRIP/AT%'
+or upper(a.serverfrom) like '%TRIP/AU%'
+or upper(a.serverfrom) like '%TRIP/BR%'
+or upper(a.serverfrom) like '%TRIP/BE%'
+or upper(a.serverfrom) like '%TRIP/PL%'
+or upper(a.serverfrom) like '%TRIP/DE%'
+or upper(a.serverfrom) like '%TRIP/RU%'
+or upper(a.serverfrom) like '%TRIP/FR%'
+or upper(a.serverfrom) like '%TRIP/PH%'
+or upper(a.serverfrom) like '%TRIP/CO%'
+or upper(a.serverfrom) like '%TRIP/KR%'
+or upper(a.serverfrom) like '%TRIP/NL%'
+or upper(a.serverfrom) like '%TRIP/CA%'
+or upper(a.serverfrom) like '%TRIP/CZ%'
+or upper(a.serverfrom) like '%TRIP/MY%'
+or upper(a.serverfrom) like '%TRIP/US%'
+or upper(a.serverfrom) like '%TRIP/PE%'
+or upper(a.serverfrom) like '%TRIP/MX%'
+or upper(a.serverfrom) like '%TRIP/ZA%'
+or upper(a.serverfrom) like '%TRIP/PT%'
+or upper(a.serverfrom) like '%TRIP/JP%'
+or upper(a.serverfrom) like '%TRIP/SE%'
+or upper(a.serverfrom) like '%TRIP/CH%'
+or upper(a.serverfrom) like '%TRIP/SA%'
+or upper(a.serverfrom) like '%TRIP/TW%'
+or upper(a.serverfrom) like '%TRIP/TH%'
+or upper(a.serverfrom) like '%TRIP/TR%'
+or upper(a.serverfrom) like '%TRIP/VE%'
+or upper(a.serverfrom) like '%TRIP/ES%'
+or upper(a.serverfrom) like '%TRIP/GR%'
+or upper(a.serverfrom) like '%TRIP/HK%'
+or upper(a.serverfrom) like '%TRIP/SG%'
+or upper(a.serverfrom) like '%TRIP/NZ%'
+or upper(a.serverfrom) like '%TRIP/IL%'
+or upper(a.serverfrom) like '%TRIP/IT%'
+or upper(a.serverfrom) like '%TRIP/IN%'
+or upper(a.serverfrom) like '%TRIP/ID%'
+or upper(a.serverfrom) like '%TRIP/UK%'
+or upper(a.serverfrom) like '%TRIP/VN%'
+or upper(a.serverfrom) like '%TRIP/CL%'
+or upper(a.serverfrom) like '%TRIP/CN%'
+or upper(a.serverfrom) like '%TRIP.COM/HK%'
+or upper(a.serverfrom) like '%TRIP.COM/HK_EN%'
+or upper(a.serverfrom) like '%TRIP.COM/EN%'
+or upper(a.serverfrom) like '%TRIP.COM/JP%'
+or upper(a.serverfrom) like '%TRIP.COM/KR%'
+or upper(a.serverfrom) like '%TRIP.COM/DE%'
+or upper(a.serverfrom) like '%TRIP.COM/ES%'
+or upper(a.serverfrom) like '%TRIP.COM/FR%'
+or upper(a.serverfrom) like '%TRIP.COM/RU%'
+or upper(a.serverfrom) like '%TRIP.COM/SG%'
+or upper(a.serverfrom) like '%TRIP.COM/AU%'
+or upper(a.serverfrom) like '%TRIP.COM/TH%'
+or upper(a.serverfrom) like '%TRIP.COM/MY%'
+or upper(a.serverfrom) like '%TRIP.COM/ID%'
+or upper(a.serverfrom) like '%.TRIP.COM%'
+or upper(a.serverfrom) like '%trip/en/online%'
+)
+and
+(
+upper(a.serverfrom) <> 'ct.ctrip.com/en'
+and upper(a.serverfrom) <> 'hotels.ctrip.com/detail'
+) then 'T' else 'F' end
+;
+
+drop table tmp_cardrisk.tmp_alpay_finalinfo_zy;
+create table tmp_cardrisk.tmp_alpay_finalinfo_zy as
+select
+ordertype,
+paymentname,
+case   when  isforigencard ='T' then 'T'
+       when (paymentname like '%境外发行信用卡 -- 威士(VISA)%'
+       or paymentname like '%杂币-MASTER%'
+       or paymentname like '%杂币-VISA%'
+       or paymentname like '%境外发行信用卡 -- 运通(AMEX)%'
+       or paymentname like '%境外发行信用卡 -- 万事达(Master)%'
+       or paymentname like '%INICIS%'
+       or paymentname like '%ADYEN%'
+       or paymentname like '%港币-JCB%'
+       or paymentname like '%境外发行信用卡 -- JCB%'
+       or paymentname like '%Ipaylinks%'
+       or paymentname like '%SOFTBANK%'
+       or paymentname like '%境外发行信用卡-- 威士(港币)%'
+       or paymentname like '%美国运通%'   
+        or paymentname like '%杂币-JCB%'
+       or paymentname like '%韩国本地卡%'
+       or paymentname like '%港币-VISA%'
+       or paymentname like '%港币-MASTER%'
+       or paymentname like '%外卡%'
+       or paymentname like '%INGENICO.TP%'
+       or paymentname like '%境外发行信用卡-- 万事达(港币)%'
+       or ( isibu = 'T' and paymentname like '%信用卡%' and paymentname not like '%银行%' ))
+       then 'T' else 'F' end as isforigencard,
+isibu,
+ordernum,
+orderamount
+from tmp_cardrisk.tmp_alpay_orderinfo_zy
+;
+
+drop table tmp_cardrisk.tmp_alpay_result;
+create table tmp_cardrisk.tmp_alpay_result as
+select concat('$v_date','-','$v_date1') as datatime, sum(dd.paymentinfos_rmbrealamount) as rmbrealamount
+from
+(
+select a.*,c.*
+from (
+select * 
+from dw_paypubdb.factpayorderdeductsource
+where ordertype = '高铁' 
+and y='2018' and createtime >='$v_date' and createtime <'$v_date1' 
+and currency<>'CNY' and currency<>'RMB'
+) a
+left join (
+select orderid,max(reqid) as reqid
+from  ods_cardriskdb.riskcontrol_cp0001002 
+where d>='2018-05-01'
+and orderdate>='$v_date' and orderdate <'$v_date1' 
+and ordertype=16 and paymentinfos_prepaytype='CCARD' 
+and paymentinfos_currency<>'CNY'
+group by orderid
+) b
+on a.orderid=b.orderid
+left  join (
+select distinct reqid,paymentinfos_currency,orderamount,paymentinfos_amount,paymentinfos_rmbrealamount,paymentinfos_realamount,paymentinfos_transactionamount
+from  ods_cardriskdb.riskcontrol_cp0001002 
+where d>='2018-05-01'
+and orderdate>='$v_date' and orderdate <'$v_date1' 
+and ordertype=16 and paymentinfos_prepaytype='CCARD' 
+and paymentinfos_currency<>'CNY'
+) c 
+on c.reqid=b.reqid
+)dd
+"

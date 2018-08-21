@@ -1,0 +1,101 @@
+#!/bin/bash
+source /etc/profile
+n=7
+v_date=`date "+%Y-%m-%d" -d "$day -$n days"`
+v_date1=`date "+%Y-%m-%d"`
+#v_date='2018-06-01'
+#v_date1='2018-07-01'
+hive -e"
+drop table tmp_cardrisk.zy_recall_carrent;
+create table tmp_cardrisk.zy_recall_carrent as
+----租车规则评价精确率--
+select 
+concat('$v_date','<-->', '$v_date1') as dateinte,
+--整体precision---
+case when count( distinct case when a.chall_flag=1 then a.orderid end)=0 then 0 
+else round(count( distinct case when a.TPFlag=1 then a.orderid end)*100.0/count( distinct case when a.chall_flag=1 then a.orderid end)) end  as precision,
+--->原始风险大于100规则precision
+case when count( distinct case when a.challAll_flag=1 then a.orderid end)=0 then 0 
+else round(count( distinct case when a.Tp100_flag=1 then a.orderid end)*100.0/count( distinct case when a.challAll_flag=1 then a.orderid end)) end  as precision_100,
+--->100规则覆盖率recall---
+case when  count( distinct case when a.fraud_tag=1 then a.orderid end)=0 then 0  
+else round(count( distinct case when a.Tp100_flag=1 then a.orderid end)*100.0/count( distinct case when a.fraud_tag=1 then a.orderid end)) end as rule100_recall,
+---所有规则风控覆盖率recall---
+case when count( distinct case when a.fraud_tag=1 then a.orderid end)=0 then 0 
+else round(count( distinct case when a.TPFlag=1 then a.orderid end)*100.0/count( distinct case when a.fraud_tag=1 then a.orderid end)) end as ruleAll_recall,
+---欺诈量---
+count(distinct case when a.fraud_tag=1 then a.orderid end) as fraud_cnt,
+---欺诈率---
+case when count(distinct a.orderid)=0 then 0 
+else round(count(distinct case when a.fraud_tag=1 then a.orderid end)*100.0/count(a.orderid)) end as fraud_rate
+from (select
+b.risklevel as risklevel, 
+m.originalrisklevel as originalrisklevel,
+m.orderid,  
+m.ordertype,
+m.lastoper,
+m.productcategoryid,
+m.site,    
+ch.*,
+----欺诈订单置为1----
+case when w.order_id is not null then 1 else 0 end as fraud_tag,
+---租车规则>100抓取订单置为1-----
+case when (m.originalrisklevel>100 and ch.rorderid is not NULL)  then 1 else 0 end as chall_flag, 
+---租车规则>100抓取订并且为欺诈订单置为1-----
+case when (m.originalrisklevel>100 and ch.rorderid is not NULL and w.order_id is not null)  then 1 else 0 end as Tp100_flag,
+---所有租车规则抓取订单置为1-----
+case when (m.originalrisklevel>0 and ch.rorderid is not NULL)  then 1 else 0 end as challAll_flag, 
+---抓取到并且是欺诈的订单置为1---
+case when ch.rorderid is not null and w.order_id is not null then 1 else 0 end as TPFlag,
+w.order_id,
+row_number() over(partition by m.orderid order by m.ext__genreqid desc) rn
+from (select * from ods_cardriskdb.rsk_cp0001002  where to_date(d) >= '$v_date' and to_date(d) < '$v_date1' and ordertype=21 and isforeigncard ='T' 
+     and prepaytype='CCARD')  m
+join source_cardrisk.InfoSecurity_riskleveldata b on m.ext__genreqid=b.reqid
+left join (select ruletype,
+               rulename,
+               ruleid,
+               ruleremark,
+               eventpoint,
+               subordertype,
+               orderid as rorderid,
+           	   rid
+			   from source_cardrisk.riskcontrol_checkresultlog where eventpoint='CP0001002' and 
+(rulename='UUCBC000016' or 
+rulename='UUCMH000003' or
+rulename='UUCMH020005' or
+rulename='UUCMH020003' or 
+rulename= 'UUCMH020006' or
+rulename= 'UUCBC020007'or 
+rulename='UUCBC020008'or 
+rulename= 'UUCBC020011' or 
+rulename= 'UUCBC020012'or 
+rulename='UUCBC020009' or
+rulename= 'UUCBC020010' or 
+rulename='UUCBC020013' or 
+rulename= 'UUCBC020004' or
+rulename='UUCBC020005' or
+rulename='UUCMH020004_A' or
+rulename='UUCMH020004' or
+rulename='UUCMH020011' or
+rulename='UUCMH020001' or
+rulename='UUCMH020010' or
+rulename='UUCBC020001' or
+rulename='UFCBC020013' or
+rulename='UFCBC020019' or
+rulename='UFCBC020001' or 
+rulename='UUCBC020006' or
+rulename='UUCMH020007' or
+rulename='UUCBC020003' or
+rulename='UUCMH020004_B' or
+rulename='UUCBC020014' or
+rulename='UUCBC020015' or
+rulename='UUCMH020008' or  
+rulename='UFCBC020007'or
+rulename='UFCBC020025' or
+rulename='UUCMH020009' or
+rulename='UFCBC020025'
+)) ch on m.ext__genreqid = ch.rid
+left join source_cardrisk.sec_offline_blacklist_worksheet_order w on w.order_id = m.orderid
+) a ;
+"

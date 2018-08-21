@@ -1,0 +1,80 @@
+#!/bin/bash
+source /etc/profile
+n=7
+v_date=`date "+%Y-%m-%d" -d "$day -$n days"`
+v_date1=`date "+%Y-%m-%d"`
+hive -e"
+drop table tmp_cardrisk.zy_index_carrent;
+create table tmp_cardrisk.zy_index_carrent as
+select 
+to_date(a.orderdate) as orderdate,
+---订单量---
+count(distinct a.orderid) as orders_cnt, 
+---抓取量/报警量--
+count(distinct case when a.originalrisklevel>100 then a.orderid end) as chall_cnt,
+---抓取率，抓取量/订单量（报警率）---
+case when count(a.orderid) = 0 then 0 else round(count(distinct case when a.originalrisklevel>100 then a.orderid end)*100.0/count(distinct a.orderid),2) end as chall_rate,
+---人工审核量---
+count(distinct case when a.originalrisklevel > 100 and a.originalrisklevel <200 and a.risklevel not in (203,204,220) 
+      and a.lastoper is not null then a.orderid end) as check_cnt,
+
+--人工拒绝量----
+count(distinct case when a.originalrisklevel > 100 and a.originalrisklevel <200 and a.risklevel not in (203,204,220) 
+      and a.lastoper is not null and a.risklevel >=200  then a.orderid end) as arreject,
+--人工拒绝率---
+case when count(case when a.originalrisklevel > 100 and a.originalrisklevel < 200 and a.risklevel not in (203,204,220) 
+and a.lastoper is not null then a.orderid end) = 0 then 0 
+else round( (count(distinct case when a.originalrisklevel > 100 and a.originalrisklevel <200 and a.risklevel not in (203,204,220) 
+       and a.lastoper is not null and a.risklevel >=200 then a.orderid end))*100.0/count(distinct case when a.originalrisklevel > 100 and a.originalrisklevel < 200 
+and  a.risklevel not in (203,204,220)and a.lastoper is not null then a.orderid end) ,2) end as crefuse_rate,
+
+---人工通过量，经过人工审核<200---
+count(distinct case when a.originalrisklevel > 100 and a.originalrisklevel <200 and a.risklevel not in (203,204,220) 
+      and a.lastoper is not null and a.risklevel < 200 then a.orderid end) as cpass_cnt,
+
+---人工通过率，分母为0则为0---     
+case when count(case when a.originalrisklevel > 100 and a.originalrisklevel < 200 and a.risklevel not in (203,204,220) 
+and a.lastoper is not null then a.orderid end) = 0 then 0 
+else round( (count(distinct case when a.originalrisklevel > 100 and a.originalrisklevel <200 and a.risklevel not in (203,204,220) 
+       and a.lastoper is not null and a.risklevel < 200 then a.orderid end))*100.0/count(distinct case when a.originalrisklevel > 100 and a.originalrisklevel < 200 
+and  a.risklevel not in (203,204,220)and a.lastoper is not null then a.orderid end) ,2) end as cpass_rate,
+
+
+---真实拒绝量=人工直接拒绝+人工审核后拒绝---
+---直接拒绝--
+(count(distinct case when (a.originalrisklevel in (201,207) or (a.originalrisklevel < 200 and a.risklevel = 180 and a.lastoper is not null)) 
+       then a.orderid end)+
+count(distinct case when (a.originalrisklevel in (201,207) or (a.originalrisklevel < 200 and a.risklevel > 200 and a.lastoper is null)) 
+       then a.orderid end)+
+ ---人工审核后拒绝
+count(distinct case when a.originalrisklevel > 100 and a.originalrisklevel <200 and a.risklevel not in (203,204,220) and a.lastoper is not null and a.risklevel >=200  then a.orderid end)) as true_refuse_cnt,
+
+
+---真实拒绝率=真实拒绝量/订单总量---      
+round((count(distinct case when (a.originalrisklevel in (201,207) or (a.originalrisklevel < 200 and a.risklevel = 180 and a.lastoper is not null)) then a.orderid end)+
+count(distinct case when (a.originalrisklevel in (201,207) or (a.originalrisklevel < 200 and a.risklevel > 200 and a.lastoper is null)) 
+       then a.orderid end)+
+count(distinct case when a.originalrisklevel > 100 and a.originalrisklevel <200 and a.risklevel not in (203,204,220) and a.lastoper is not null and a.risklevel >=200 
+      then a.orderid end)
+)*100.0/count(distinct a.orderid),2) as true_refuse_rate,
+
+---欺诈量---   
+sum(fraud_tag) as cheat_cnt,
+---欺诈率----
+round(sum(fraud_tag)*100.0/count(distinct a.orderid),2) as cheat_rate
+from 
+(select
+b.risklevel as risklevel, 
+m.originalrisklevel as originalrisklevel,
+m.orderid, 
+m.remark, 
+m.ordertype,
+m.lastoper,
+case when w.order_id is not null then 1 else 0 end as fraud_tag,
+w.order_id,
+row_number() over(partition by m.orderid order by m.ext__genreqid desc) rn
+from (select * from ods_cardriskdb.rsk_cp0001002  where to_date(d) >= '$v_date' and to_date(d) < '$v_date1' and  ordertype=21 and productcategoryid=34 and isforeigncard='T' and site<>'CN' and site is not null)  m
+join source_cardrisk.InfoSecurity_riskleveldata b on m.ext__genreqid=b.reqid
+left join source_cardrisk.sec_offline_blacklist_worksheet_order w on w.order_id = m.orderid
+) a where a.rn=1 group by to_date(a.orderdate);
+"

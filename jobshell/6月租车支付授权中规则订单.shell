@@ -1,0 +1,66 @@
+#!/bin/bash
+source /etc/profile
+n=30
+#v_date=`date "+%Y-%m-%d" -d "$day -$n days"`
+#v_date1=`date "+%Y-%m-%d"`
+v_date='2018-06-01'
+v_date1='2018-07-01'
+hive -e"
+drop table tmp_cardrisk.tmp_carrent_zy;
+create table tmp_cardrisk.tmp_carrent_zy as
+select * from (select m.reqid ,
+               m.orderid,
+               m.orderdate,
+               m.amount,
+               m.serverfrom,
+               ch.ruletype,
+               ch.rulename,
+               ch.ruleid,
+               ch.risklevel,
+               ch.ruleremark,
+               ch.eventpoint,
+               ch.ordertype, 
+               ch.subordertype,
+               c.paymentinfoid,
+               p.prepaytype,
+			   row_number() over(partition by m.orderid order by m.reqid desc) rn 
+from  (select reqid,orderid,amount,orderdate,serverfrom from source_cardrisk.infosecurity_maininfo  where ordertype=21)  m
+join source_cardrisk.InfoSecurity_PaymentInfo_all p on p.reqid=m.reqid
+join source_cardrisk.infosecurity_cardinfo_all c on c.paymentinfoid = p.paymentinfoid
+join  source_cardrisk.riskcontrol_checkresultlog ch on m.reqid=ch.rid
+where to_date(m.orderdate)>='$v_date' and  to_date(m.orderdate)<'$v_date1'  and c.isforigencard='T' and ch.eventpoint='CP0001002' 
+and (ch.rulename='UUCBC000016' or 
+ch.rulename='UUCMH000003' or
+ch.rulename='UUCMH020005' or
+ch.rulename='UUCMH020003' or 
+ch.rulename='UUCMH020006' or
+ch.rulename='UUCBC020007' or 
+ch.rulename='UUCBC020008' or 
+ch.rulename= 'UUCBC020011' or 
+ch.rulename= 'UUCBC020012' or 
+ch.rulename='UUCBC020009' or
+ch.rulename= 'UUCBC020010' or 
+ch.rulename='UUCBC020013' or 
+ch.rulename= 'UUCBC020004' or
+ch.rulename='UUCBC020005' or
+ch.rulename='UUCMH020004_A' or
+ch.rulename='UUCMH020004' or
+ch.rulename='UUCMH020011' or
+ch.rulename='UUCMH020001' or
+ch.rulename='UUCMH020010' or
+ch.rulename='UUCBC020001' or
+ch.rulename='UFCBC020013' or
+ch.rulename='UFCBC020019' or
+ch.rulename='UFCBC020001' or 
+ch.rulename='UUCBC020006' or
+ch.rulename='UUCMH020007' or
+ch.rulename='UUCBC020003' or
+ch.rulename='UUCMH020004_B' or
+ch.rulename='UUCBC020014' or
+ch.rulename='UUCBC020015' or
+ch.rulename='UUCMH020008' or  
+ch.rulename='UFCBC020007' or
+ch.rulename='UFCBC020025' or
+ch.rulename='UUCMH020009'
+)) main 
+where main.rn=1"

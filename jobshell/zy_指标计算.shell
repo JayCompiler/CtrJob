@@ -1,0 +1,81 @@
+#!/bin/bash
+source /etc/profile
+n=1
+v_date=`date "+%Y-%m-%d" -d "$day -$n days"`
+v_date1=`date "+%Y-%m-%d"`
+hive -e"
+drop table tmp_cardrisk.zy_index;
+create table tmp_cardrisk.zy_index as
+select 
+to_date(a.orderdate) as orderdate, 
+hour(a.orderdate) as ordertime ,
+a.ordertype as ordertype,
+---订单量---
+count(distinct a.orderid) as orders_cnt, 
+
+---抓取量--
+count(distinct case when a.originalrisklevel>100 then a.orderid end) as chall_cnt,
+---抓取率，抓取量/订单量---
+case when count(a.orderid) = 0 then 0
+else round(count(distinct case when a.originalrisklevel>100 then a.orderid end)*100.0/count(distinct a.orderid),2) end as chall_rate,
+---直接拒绝量 风险值大于200（201，207），或者原始风险在100~200之间，没人审核，直接拒绝----
+count(distinct case when (a.originalrisklevel in (201,207) or (a.originalrisklevel < 200 and a.risklevel > 200 and a.lastoper is null)) 
+      then a.orderid end) as drefuse_cnt,
+---真实拒绝量=直接拒绝+人工审核后拒绝---
+(count(distinct case when (a.originalrisklevel in (201,207) or (a.originalrisklevel < 200 and a.risklevel > 200 and a.lastoper is null)) 
+       then a.orderid end)+
+count(distinct case when a.originalrisklevel > 100 and a.originalrisklevel <200 and a.risklevel not in (203,204,220) and a.lastoper is not null and a.risklevel > 100 
+      then a.orderid end)) as true_refuse_cnt,
+---真实拒绝率=真实拒绝量/点歌单总量---      
+round((count(distinct case when (a.originalrisklevel in (201,207) or (a.originalrisklevel < 200 and a.risklevel > 200 and a.lastoper is null)) then a.orderid end)+
+count(distinct case when a.originalrisklevel > 100 and a.originalrisklevel <200 and a.risklevel not in (203,204,220) and a.lastoper is not null and a.risklevel > 100 
+      then a.orderid end)
+)*100.0/count(distinct a.orderid),2) as true_refuse_rate,
+
+---人工审核量---
+count(distinct case when a.originalrisklevel > 100 and a.originalrisklevel <200 and a.risklevel not in (203,204,220) 
+      and a.lastoper is not null then a.orderid end) as check_cnt,
+---人工通过量，经过人工审核<100---
+count(distinct case when a.originalrisklevel > 100 and a.originalrisklevel <200 and a.risklevel not in (203,204,220) 
+      and a.lastoper is not null and a.risklevel < 100 then a.orderid end) as cpass_cnt,
+---人工通过率，分母为0则为0---     
+case when count(case when a.originalrisklevel > 100 and a.originalrisklevel < 200 and a.risklevel not in (203,204,220) 
+and a.lastoper is not null then a.orderid end) = 0 then 0 
+
+else round( (count(distinct case when a.originalrisklevel > 100 and a.originalrisklevel <200 and a.risklevel not in (203,204,220) 
+       and a.lastoper is not null and a.risklevel < 100 then a.orderid end))*100.0/count(distinct case when a.originalrisklevel > 100 and a.originalrisklevel < 200 
+and  a.risklevel not in (203,204,220)and a.lastoper is not null then a.orderid end) ,2) end as cpass_rate,
+---欺诈量---   
+sum(fraud_tag) as cheat_cnt,
+---count(distinct case when a.order_id is not null then a.orderid end) as cheat_cnt,
+---欺诈率----
+round(sum(fraud_tag)*100.0/count(distinct a.orderid),2) as cheat_rate
+from 
+(select
+m.reqid, m.orderid, m.orderdate,m.amount,m.serverfrom,
+case when  m.ordertype=1 then '机票'
+ 	 when  m.ordertype=2 then '酒店'
+     when  m.ordertype=16 then '高铁'
+     else '其他' end as ordertype,
+b.originalrisklevel, 
+b.risklevel, 
+b.lastoper,  
+b.remark,
+case when w.order_id is not null then 1 else 0 end as fraud_tag,
+w.order_id,
+p.prepaytype,
+c.creditcardtype, 
+c.isforigencard,
+row_number() over(partition by m.orderid order by m.reqid desc) rn
+from (select * from source_cardrisk.infoSecurity_MainInfo  where to_date(orderdate) >= '$v_date' and to_date(orderdate)<'v_date1') m
+join source_cardrisk.InfoSecurity_riskleveldata b on m.reqid=b.reqid
+join source_cardrisk.infosecurity_paymentinfo p on m.reqid = p.reqid
+join source_cardrisk.infosecurity_cardinfo c on c.paymentinfoid = p.paymentinfoid
+left join source_cardrisk.sec_offline_blacklist_worksheet_order w on w.order_id = m.orderid
+where c.isforigencard='T' and  p.prepaytype='CCARD')a 
+where a.rn=1
+
+group by  
+to_date(a.orderdate), 
+hour(a.orderdate),
+a.ordertype"
